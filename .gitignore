@@ -1,0 +1,32 @@
+# Dependencies
+node_modules
+
+# Build
+dist
+coverage
+.turbo
+.nyc_output
+instrumented
+
+# Logs
+*.log
+
+# Env
+.env*
+
+# TypeScript
+*.tsbuildinfo
+
+# Npm
+npm-debug.log*
+npm-error.log*
+pnpm-debug.log*
+
+# Editor
+.vscode/*
+
+.idea
+
+# Misc
+.DS_Store
+.vscode/settings.json
