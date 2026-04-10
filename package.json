@@ -1,0 +1,79 @@
+{
+  "name": "inquirer-recursive-prompt",
+  "version": "0.0.0",
+  "description": "Recursive prompt utility for @inquirer with nested flows and typed plugin support",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "default": "./dist/types.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE.md"
+  ],
+  "type": "module",
+  "private": false,
+  "author": "Nivvdiy",
+  "license": "MIT",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "inquirer",
+    "prompt",
+    "recursive",
+    "cli",
+    "generator",
+    "typescript",
+    "types"
+  ],
+  "homepage": "https://github.com/Nivvdiy/inquirer-recursive-prompt#readme",
+  "bugs": {
+    "url": "https://github.com/Nivvdiy/inquirer-recursive-prompt/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Nivvdiy/inquirer-recursive-prompt"
+  },
+  "scripts": {
+    "build": "tsc",
+    "check": "npm run test",
+    "test": "npm run build && node --test tests/**/*.test.js && npm run test:types",
+    "test:runtime": "npm run build && node --test tests/**/*.test.js",
+    "test:types": "tsc -p tsconfig.type-tests.json --noEmit",
+    "pack:dry": "npm pack --dry-run",
+    "prepublishOnly": "npm run test",
+    "example:simple": "node examples/simple.ts",
+    "example:nested": "node examples/nested-recursive.ts",
+    "example:plugin": "node examples/with-plugin.ts",
+    "example:exit": "node examples/with-exit-condition.ts",
+    "clean": "rm -rf dist",
+    "prepare": "npm run build",
+    "changeset": "changeset"
+  },
+  "dependencies": {
+    "@inquirer/core": "^11.1.8",
+    "@inquirer/prompts": "^8.4.1"
+  },
+  "devDependencies": {
+    "@bartheleway/inquirer-table-multiple": "^1.0.3",
+    "@changesets/changelog-github": "^0.6.0",
+    "@changesets/cli": "^2.30.0",
+    "@types/lodash": "^4.17.24",
+    "@types/node": "^25.6.0",
+    "typescript": "^6.0.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "packageManager": "npm@9.8.1"
+}
