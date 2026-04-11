@@ -53,7 +53,7 @@ jobs:
         run: npm test
 
       - name: Align package version with tag
-        run: npm version "${{ steps.version.outputs.version }}" --no-git-tag-version
+        run: npm version "${{ steps.version.outputs.version }}" --no-git-tag-version --allow-same-version
 
       - name: Create project zip
         shell: bash
