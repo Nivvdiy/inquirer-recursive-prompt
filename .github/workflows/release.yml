@@ -46,6 +46,29 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
+      - name: Check version against tag
+        id: check_version
+        shell: bash
+        run: |
+          TAG_VERSION="${{ steps.version.outputs.version }}"
+          PKG_VERSION=$(node -p "require('./package.json').version")
+
+          echo "Tag version:     $TAG_VERSION"
+          echo "Package version: $PKG_VERSION"
+
+          if [ "$PKG_VERSION" = "$TAG_VERSION" ]; then
+            echo "Versions match — skipping alignment"
+            echo "needs_bump=false" >> "$GITHUB_OUTPUT"
+          else
+            LOWER=$(printf '%s\n%s\n' "$PKG_VERSION" "$TAG_VERSION" | sort -V | head -n1)
+            if [ "$LOWER" = "$TAG_VERSION" ]; then
+              echo "::error::Package version ($PKG_VERSION) is higher than tag ($TAG_VERSION). Downgrade is not allowed."
+              exit 1
+            fi
+            echo "Package version ($PKG_VERSION) is lower than tag ($TAG_VERSION) — aligning"
+            echo "needs_bump=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Install dependencies
         run: npm ci
 
@@ -53,6 +76,7 @@ jobs:
         run: npm test
 
       - name: Align package version with tag
+        if: steps.check_version.outputs.needs_bump == 'true'
         run: npm version "${{ steps.version.outputs.version }}" --no-git-tag-version
 
       - name: Create project zip
