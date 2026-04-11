@@ -16,6 +16,7 @@ import {
   type RecursiveExitWhenContext,
   type RecursiveAnswers,
   type RecursiveNestedOptions,
+  type RecursivePromptThemeOptions,
   type RecursivePromptOptions,
   type RecursiveQuestion,
   type RecursiveQuestionExecutionContext,
@@ -43,6 +44,8 @@ const INTERNAL_QUESTION_KEYS = new Set([
   "when",
   "filter",
   "validate",
+  "askAnswered",
+  "transformer",
 ]);
 
 function extractPromptConfig(
@@ -59,6 +62,122 @@ function extractPromptConfig(
   }
 
   return config;
+}
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function deepMergeRecord(
+  base: Record<string, unknown>,
+  override: Record<string, unknown>,
+): Record<string, unknown> {
+  const output: Record<string, unknown> = { ...base };
+
+  for (const [key, value] of Object.entries(override)) {
+    if (isObjectRecord(value) && isObjectRecord(output[key])) {
+      output[key] = deepMergeRecord(output[key] as Record<string, unknown>, value);
+      continue;
+    }
+
+    output[key] = value;
+  }
+
+  return output;
+}
+
+function applyThemeToPromptConfig<Plugins extends readonly AnyRecursivePromptPlugin[]>(
+  question: RecursiveQuestion<Plugins>,
+  promptConfig: Record<string, unknown>,
+  globalTheme: RecursivePromptThemeOptions<Plugins> | undefined,
+): Record<string, unknown> {
+  if (question.type === "recursive") {
+    return promptConfig;
+  }
+
+  const themeByType = globalTheme?.[
+    question.type as keyof RecursivePromptThemeOptions<Plugins>
+  ] as unknown;
+  const localTheme = promptConfig.theme;
+
+  if (themeByType === undefined) {
+    return promptConfig;
+  }
+
+  if (isObjectRecord(themeByType) && isObjectRecord(localTheme)) {
+    return {
+      ...promptConfig,
+      theme: deepMergeRecord(themeByType, localTheme),
+    };
+  }
+
+  if (localTheme === undefined) {
+    return {
+      ...promptConfig,
+      theme: themeByType,
+    };
+  }
+
+  return promptConfig;
+}
+
+async function resolveDynamicPromptConfig(
+  questionType: string,
+  promptConfig: Record<string, unknown>,
+  executionContext: RecursiveQuestionExecutionContext,
+): Promise<Record<string, unknown>> {
+  if (typeof promptConfig.choices === "function") {
+    return {
+      ...promptConfig,
+      choices: await promptConfig.choices(executionContext),
+    };
+  }
+
+  return promptConfig;
+}
+
+function hasAnswerByPath(target: RecursiveAnswers, path: string): boolean {
+  if (!path.includes(".")) {
+    return Object.prototype.hasOwnProperty.call(target, path);
+  }
+
+  const parts = path.split(".");
+  let cursor: unknown = target;
+
+  for (let index = 0; index < parts.length; index += 1) {
+    const key = parts[index];
+
+    if (!isObjectRecord(cursor) || !(key in cursor)) {
+      return false;
+    }
+
+    cursor = (cursor as Record<string, unknown>)[key];
+  }
+
+  return true;
+}
+
+function setAnswerByPath(target: RecursiveAnswers, path: string, value: unknown): void {
+  if (!path.includes(".")) {
+    target[path] = value;
+    return;
+  }
+
+  const parts = path.split(".");
+  let cursor: Record<string, unknown> = target;
+
+  for (let index = 0; index < parts.length - 1; index += 1) {
+    const key = parts[index];
+    const next = cursor[key];
+
+    if (!isObjectRecord(next)) {
+      cursor[key] = {};
+    }
+
+    cursor = cursor[key] as Record<string, unknown>;
+  }
+
+  cursor[parts[parts.length - 1]] = value;
 }
 
 function warnDepthBypassOnce(): void {
@@ -118,11 +237,31 @@ async function askOneQuestion<Plugins extends readonly AnyRecursivePromptPlugin[
   question: RecursiveQuestion<Plugins>,
   plugins: Plugins | undefined,
   context: RecursivePromptOptions["context"],
+  globalTheme: RecursivePromptThemeOptions<Plugins> | undefined,
+  executionContext: RecursiveQuestionExecutionContext,
   depth: number,
 ): Promise<unknown> {
-  const promptConfig = extractPromptConfig(
+  const rawPromptConfig = extractPromptConfig(
     question as RecursiveQuestion<readonly AnyRecursivePromptPlugin[]>,
   );
+  const themedPromptConfig = applyThemeToPromptConfig(
+    question,
+    rawPromptConfig,
+    globalTheme,
+  );
+  const dynamicPromptConfig = await resolveDynamicPromptConfig(
+    question.type,
+    themedPromptConfig,
+    executionContext,
+  );
+  const promptConfig =
+    typeof question.transformer === "function"
+      ? {
+          ...dynamicPromptConfig,
+          transformer: (value: unknown, flags?: unknown) =>
+            question.transformer?.(value, executionContext, flags) ?? String(value),
+        }
+      : dynamicPromptConfig;
 
   switch (question.type) {
     case "input":
@@ -153,6 +292,7 @@ async function askOneQuestion<Plugins extends readonly AnyRecursivePromptPlugin[
           ...nestedConfig,
           context: nestedConfig.context ?? context,
           plugins: nestedConfig.plugins ?? plugins,
+          theme: nestedConfig.theme ?? globalTheme,
         },
         depth + 1,
       );
@@ -216,6 +356,20 @@ async function validateQuestionAnswer<Plugins extends readonly AnyRecursivePromp
   throw new Error(`Validation failed for question "${question.name}".`);
 }
 
+async function addQuestionAdditionalFields<
+  Plugins extends readonly AnyRecursivePromptPlugin[],
+>(
+  question: RecursiveQuestion<Plugins>,
+  value: unknown,
+  executionContext: RecursiveQuestionExecutionContext,
+): Promise<void> {
+  if (!question.addAdditionalFields) {
+    return;
+  }
+
+  await question.addAdditionalFields(value, executionContext);
+}
+
 async function shouldExitRecursiveLoop<
   Plugins extends readonly AnyRecursivePromptPlugin[],
 >(
@@ -232,13 +386,14 @@ async function shouldExitRecursiveLoop<
 async function shouldContinue(
   options: Pick<
     RecursivePromptOptions<readonly AnyRecursivePromptPlugin[]>,
-    "message" | "default" | "questionType" | "options" | "context"
+    "message" | "default" | "questionType" | "options" | "context" | "theme"
   >,
 ): Promise<boolean> {
   const message = resolveContinueMessage(options.message);
   const defaultValue = options.default ?? true;
   const questionType = options.questionType ?? "confirm";
   const context = options.context;
+  const recursivePromptTheme = options.theme?.recursivePrompt;
 
   if (questionType === "select") {
     const yesLabel = options.options?.yesLabel ?? "Yes";
@@ -252,6 +407,7 @@ async function shouldContinue(
           { name: yesLabel, value: true },
           { name: noLabel, value: false },
         ],
+        theme: recursivePromptTheme,
       },
       context,
     );
@@ -261,6 +417,7 @@ async function shouldContinue(
     {
       message,
       default: defaultValue,
+      theme: recursivePromptTheme,
     },
     context,
   );
@@ -306,9 +463,17 @@ async function recursivePromptWithDepth<
     for (const question of options.prompts) {
       const questionContext: RecursiveQuestionExecutionContext = {
         answers: currentAnswers,
+        allAnswers: collectedAnswers,
         depth,
         iteration,
+        setField: (path: string, value: unknown) => {
+          setAnswerByPath(currentAnswers, path, value);
+        },
       };
+
+      if (question.askAnswered !== true && hasAnswerByPath(currentAnswers, question.name)) {
+        continue;
+      }
 
       if (!(await shouldAskQuestion(question, questionContext))) {
         continue;
@@ -318,6 +483,8 @@ async function recursivePromptWithDepth<
         question,
         options.plugins,
         options.context,
+        options.theme,
+        questionContext,
         depth,
       );
       const filteredValue = await applyQuestionFilter(
@@ -327,7 +494,8 @@ async function recursivePromptWithDepth<
       );
 
       await validateQuestionAnswer(question, filteredValue, questionContext);
-      currentAnswers[question.name] = filteredValue;
+      setAnswerByPath(currentAnswers, question.name, filteredValue);
+      await addQuestionAdditionalFields(question, filteredValue, questionContext);
     }
 
     collectedAnswers.push(currentAnswers);

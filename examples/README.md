@@ -81,17 +81,56 @@ First asks for a max number of items, then auto-exits when that limit is reached
 npx ts-node examples/with-exit-condition.ts
 ```
 
+### 5. With Themes (with-themes.ts)
+
+Applying Inquirer themes globally and per question, including the loop prompt.
+
+**Features:**
+
+- `theme` option with per-type keys (`input`, `select`, `confirm`)
+- `recursivePrompt` key to style the loop continue prompt independently
+- Per-question `theme` override (takes priority over global)
+
+**Run:**
+
+```bash
+npx ts-node examples/with-themes.ts
+```
+
+### 6. With Month Revenue (with-month-revenue.ts)
+
+A concrete end-to-end example: configure a yearly revenue forecast month by month.
+
+**Features:**
+
+- First question outside the loop (year selection)
+- `choices` as a function filtering already-selected months via `allAnswers`
+- `transformer` computing and displaying the monthly total while the user types
+- `addAdditionalFields` + `setField` injecting `daysInMonth` and `monthTotal` after validation
+- Yearly total computed from the accumulated results
+
+**Run:**
+
+```bash
+npx ts-node examples/with-month-revenue.ts
+```
+
 ## Common Features Across Examples
 
 All examples demonstrate:
 
-- **`when`**: Conditional question display
+- **`when`**: Conditional question display based on `answers` (current iteration) and `allAnswers` (previous iterations)
 - **`validate`**: Input validation with error messages
-- **`filter`**: Transform user input
-- **`exitWhen`**: Early exit from the loop (optional)
+- **`filter`**: Transform user input before storing
+- **`transformer`**: Display-level formatting with execution context
+- **`addAdditionalFields`**: Inject computed fields after answer validation (no extra question)
+- **`setField`**: Write to any answer path from any callback, supports dot notation
+- **`choices` as function**: Dynamic choice lists filtered from `allAnswers`
+- **`exitWhen`**: Early exit from the loop
 - **Plugins**: Register custom question types
 - **Recursive nesting**: Build nested structures up to 3 levels deep
 - **`bypassDepthLimit`**: Override depth safety (with warning)
+- **`theme`**: Global theming per prompt type and per question override
 
 ## Execution Flow
 

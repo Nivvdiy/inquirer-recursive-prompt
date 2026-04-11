@@ -322,3 +322,163 @@ test("prints bypassDepthLimit warning only once", async () => {
     assert.match(calls[0], /bypassDepthLimit is enabled/);
   }
 });
+
+test("supports dotted name path assignment", async () => {
+  const valuePlugin = createValuePlugin();
+
+  const result = await recursivePrompt({
+    plugins: [valuePlugin],
+    prompts: [
+      {
+        name: "user.profile.name",
+        type: "value",
+        value: "Velynn",
+      },
+    ],
+    exitWhen: ({ answers }) => answers.length >= 1,
+  });
+
+  assert.deepEqual(result, [{ user: { profile: { name: "Velynn" } } }]);
+});
+
+test("askAnswered only re-asks when explicitly enabled", async () => {
+  let callCount = 0;
+  const plugin = {
+    name: "Counter",
+    type: "counter",
+    prompt: async () => {
+      callCount += 1;
+      return callCount;
+    },
+  };
+
+  const result = await recursivePrompt({
+    plugins: [plugin],
+    prompts: [
+      { name: "dup", type: "counter" },
+      { name: "dup", type: "counter" },
+      { name: "dup2", type: "counter", askAnswered: true },
+      { name: "dup2", type: "counter", askAnswered: true },
+    ],
+    exitWhen: ({ answers }) => answers.length >= 1,
+  });
+
+  assert.equal(callCount, 3);
+  assert.deepEqual(result, [{ dup: 1, dup2: 3 }]);
+});
+
+test("when/filter/transformer receive allAnswers and current answers", async () => {
+  let transformerContext;
+  const plugin = {
+    name: "Context plugin",
+    type: "context-value",
+    prompt: async (config) => {
+      if (typeof config.transformer === "function") {
+        config.transformer("display", { isFinal: false });
+      }
+      return config.value;
+    },
+  };
+
+  const result = await recursivePrompt({
+    plugins: [plugin],
+    prompts: [
+      {
+        name: "step1",
+        type: "context-value",
+        value: "a",
+        transformer: (_value, context) => {
+          transformerContext = {
+            currentKeys: Object.keys(context.answers),
+            allCount: context.allAnswers.length,
+          };
+          return "ok";
+        },
+      },
+      {
+        name: "step2",
+        type: "context-value",
+        value: 5,
+        when: (context) =>
+          context.answers.step1 === "a" && context.allAnswers.length === 0,
+        filter: (value, context) =>
+          context.answers.step1 === "a" && context.allAnswers.length === 0
+            ? Number(value) * 2
+            : value,
+      },
+    ],
+    exitWhen: ({ answers }) => answers.length >= 1,
+  });
+
+  assert.deepEqual(transformerContext, { currentKeys: [], allCount: 0 });
+  assert.deepEqual(result, [{ step1: "a", step2: 10 }]);
+});
+
+test("addAdditionalFields augments the current iteration answers after validation", async () => {
+  const valuePlugin = createValuePlugin();
+
+  const result = await recursivePrompt({
+    plugins: [valuePlugin],
+    prompts: [
+      {
+        name: "month",
+        type: "value",
+        value: 1,
+      },
+      {
+        name: "dailyRevenue",
+        type: "value",
+        value: 10,
+        filter: (value) => Number(value),
+        validate: (value) => Number(value) > 0 || "invalid",
+        addAdditionalFields: (value, { answers }) => {
+          answers.daysInMonth = 28;
+          answers.monthTotal = Number(value) * 28;
+        },
+      },
+    ],
+    exitWhen: ({ answers }) => answers.length >= 1,
+  });
+
+  assert.deepEqual(result, [
+    {
+      month: 1,
+      dailyRevenue: 10,
+      daysInMonth: 28,
+      monthTotal: 280,
+    },
+  ]);
+});
+
+test("dynamic choices are resolved before calling the prompt", async () => {
+  const observedChoices = [];
+  const plugin = {
+    name: "Choose first",
+    type: "pick-first",
+    prompt: async (config) => {
+      observedChoices.push(config.choices.map((choice) => choice.value));
+      return config.choices[0].value;
+    },
+  };
+
+  const result = await recursivePrompt({
+    plugins: [plugin],
+    prompts: [
+      {
+        name: "month",
+        type: "pick-first",
+        choices: ({ allAnswers }) => {
+          const remaining = ["jan", "feb", "mar"].filter(
+            (month) => !allAnswers.some((entry) => entry.month === month),
+          );
+
+          return remaining.map((value) => ({ name: value, value }));
+        },
+      },
+    ],
+    exitWhen: ({ answers }) => answers.length >= 1,
+  });
+
+  assert.deepEqual(observedChoices, [["jan", "feb", "mar"]]);
+  assert.deepEqual(result, [{ month: "jan" }]);
+});

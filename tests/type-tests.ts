@@ -10,20 +10,43 @@ type TableLikeConfig = {
 const tableLikePlugin: RecursivePromptPlugin<
   "table-multiple",
   unknown,
-  TableLikeConfig
+  TableLikeConfig,
+  {
+    border?: boolean;
+    headerColor?: string;
+  }
 > = {
   name: "Table-like",
   type: "table-multiple",
   prompt: async () => [],
+  themes: {
+    border: true,
+    headerColor: "cyan",
+  },
 };
 
 const validNativeOptions: RecursivePromptOptions = {
+  theme: {
+    recursivePrompt: {
+      prefix: {
+        idle: "?",
+      },
+      icon: {
+        cursor: ">",
+      },
+    },
+  },
   exitWhen: ({ answers }) => answers.length > 0,
   prompts: [
     {
       name: "personName",
       type: "input",
       message: "Person name:",
+      askAnswered: false,
+      when: ({ allAnswers, setField }) => {
+        setField("meta.count", allAnswers.length);
+        return allAnswers.length >= 0;
+      },
     },
   ],
 };
@@ -32,6 +55,16 @@ void validNativeOptions;
 
 const validPluginOptions: RecursivePromptOptions<[typeof tableLikePlugin]> = {
   plugins: [tableLikePlugin],
+  theme: {
+    input: {
+      prefix: {
+        idle: "?",
+      },
+    },
+    "table-multiple": {
+      border: true,
+    },
+  },
   prompts: [
     {
       name: "skillRatings",
@@ -105,6 +138,43 @@ const invalidPluginOptions: RecursivePromptOptions<[typeof tableLikePlugin]> = {
 
 void invalidPluginOptions;
 
+const invalidThemeShapeForPlugin: RecursivePromptOptions<[typeof tableLikePlugin]> = {
+  plugins: [tableLikePlugin],
+  theme: {
+    // @ts-expect-error unknown plugin theme key must be rejected
+    "table-multiple": { tree: true },
+  },
+  prompts: [
+    {
+      name: "skillRatings",
+      type: "table-multiple",
+      message: "Rate your skills:",
+      columns: [{ title: "Beginner", value: "beginner" }],
+      rows: [{ title: "JavaScript", value: "javascript" }],
+    },
+  ],
+};
+
+void invalidThemeShapeForPlugin;
+
+const invalidRecursivePromptThemeShape: RecursivePromptOptions = {
+  theme: {
+    recursivePrompt: {
+      // @ts-expect-error unknown key for recursivePrompt theme must be rejected
+      unknown: true,
+    },
+  },
+  prompts: [
+    {
+      name: "value",
+      type: "input",
+      message: "v",
+    },
+  ],
+};
+
+void invalidRecursivePromptThemeShape;
+
 const invalidExitWhenContext: RecursivePromptOptions = {
   exitWhen: ({ answers }) => {
     // @ts-expect-error answers is an array in exitWhen context
@@ -120,3 +190,19 @@ const invalidExitWhenContext: RecursivePromptOptions = {
 };
 
 void invalidExitWhenContext;
+
+const invalidQuestionContextAnswersType: RecursivePromptOptions = {
+  prompts: [
+    {
+      name: "value",
+      type: "input",
+      message: "v",
+      when: ({ allAnswers }) => {
+        // @ts-expect-error allAnswers is an array, not an object map
+        return allAnswers.anything === true;
+      },
+    },
+  ],
+};
+
+void invalidQuestionContextAnswersType;

@@ -13,6 +13,9 @@ type TableMultipleValue = Awaited<ReturnType<typeof tableMultiple>>;
 /**
  * Register @bartheleway/inquirer-table-multiple as a custom plugin
  * This plugin allows selecting from a table with columns and rows
+ *
+ * Note: this plugin does not expose a configurable theme API,
+ * so no plugin theme keys are declared here.
  */
 const tableMultiplePlugin: RecursivePromptPlugin<
   "table-multiple",
@@ -23,6 +26,38 @@ const tableMultiplePlugin: RecursivePromptPlugin<
   type: "table-multiple",
   prompt: tableMultiple,
 };
+
+/**
+ * Example: if a plugin exposes theme keys, you can declare them in the plugin type.
+ *
+ * const themedPlugin: RecursivePromptPlugin<
+ *   "my-plugin",
+ *   unknown,
+ *   { message: string; theme?: { border?: string; header?: string } },
+ *   { border?: string; header?: string }
+ * > = {
+ *   name: "My plugin",
+ *   type: "my-plugin",
+ *   prompt: myPluginPrompt,
+ *   themes: {
+ *     border: "single",
+ *     header: "cyan",
+ *   },
+ * };
+ *
+ * const options: RecursivePromptOptions<[typeof themedPlugin]> = {
+ *   plugins: [themedPlugin],
+ *   theme: {
+ *     "my-plugin": {
+ *       border: "double",
+ *       header: "magenta",
+ *     },
+ *   },
+ *   prompts: [
+ *     { name: "x", type: "my-plugin", message: "Hello" },
+ *   ],
+ * };
+ */
 
 async function runPluginExample(): Promise<void> {
   const options: RecursivePromptOptions<[typeof tableMultiplePlugin]> = {
