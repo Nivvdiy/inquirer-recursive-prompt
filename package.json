@@ -1,6 +1,6 @@
 {
   "name": "inquirer-recursive-prompt",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Recursive prompt utility for @inquirer with nested flows and typed plugin support",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -56,6 +56,8 @@
     "example:nested": "node examples/nested-recursive.ts",
     "example:plugin": "node examples/with-plugin.ts",
     "example:exit": "node examples/with-exit-condition.ts",
+    "example:themes": "node examples/with-themes.ts",
+    "example:months": "node examples/with-month-revenue.ts",
     "clean": "rm -rf dist",
     "prepare": "npm run build",
     "changeset": "changeset"

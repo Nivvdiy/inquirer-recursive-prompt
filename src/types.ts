@@ -27,7 +27,15 @@ export type RecursivePromptType =
 
 type MaybePromise<T> = T | Promise<T>;
 
-type InternalQuestionKeys = "name" | "type" | "when" | "filter" | "validate";
+type InternalQuestionKeys =
+  | "name"
+  | "type"
+  | "when"
+  | "filter"
+  | "validate"
+  | "askAnswered"
+  | "transformer"
+  | "addAdditionalFields";
 
 type FlatQuestionConfig<Config> = Omit<Config, InternalQuestionKeys>;
 
@@ -38,16 +46,60 @@ export interface RecursivePromptPlugin<
   Type extends string = string,
   Value = unknown,
   Config = Record<string, unknown>,
+  Themes extends Record<string, unknown> = Record<string, unknown>,
 > {
   name: string;
   type: Type;
   prompt: (config: Config, context?: Context) => Promise<Value>;
+  themes?: Themes;
 }
 
 /**
  * Convenience type for internal code paths that work with any plugin shape.
  */
 export type AnyRecursivePromptPlugin = RecursivePromptPlugin<string, unknown, any>;
+
+type InputThemeOption = NonNullable<Parameters<typeof inputPrompt>[0]["theme"]>;
+type NumberThemeOption = NonNullable<Parameters<typeof numberPrompt>[0]["theme"]>;
+type ConfirmThemeOption = NonNullable<Parameters<typeof confirmPrompt>[0]["theme"]>;
+type SelectThemeOption = NonNullable<Parameters<typeof selectPrompt>[0]["theme"]>;
+type CheckboxThemeOption = NonNullable<Parameters<typeof checkboxPrompt>[0]["theme"]>;
+type RawlistThemeOption = NonNullable<Parameters<typeof rawlistPrompt>[0]["theme"]>;
+type ExpandThemeOption = NonNullable<Parameters<typeof expandPrompt>[0]["theme"]>;
+type PasswordThemeOption = NonNullable<Parameters<typeof passwordPrompt>[0]["theme"]>;
+type EditorThemeOption = NonNullable<Parameters<typeof editorPrompt>[0]["theme"]>;
+type SearchThemeOption = NonNullable<Parameters<typeof searchPrompt>[0]["theme"]>;
+
+type NativePromptThemeOptions = {
+  input?: InputThemeOption;
+  number?: NumberThemeOption;
+  confirm?: ConfirmThemeOption;
+  select?: SelectThemeOption;
+  checkbox?: CheckboxThemeOption;
+  rawlist?: RawlistThemeOption;
+  expand?: ExpandThemeOption;
+  password?: PasswordThemeOption;
+  editor?: EditorThemeOption;
+  search?: SearchThemeOption;
+  recursivePrompt?: ConfirmThemeOption & SelectThemeOption;
+};
+
+type PluginPromptThemeOptions<Plugins extends readonly AnyRecursivePromptPlugin[]> =
+  {
+    [P in Plugins[number] as P["type"]]?: NonNullable<
+      P extends { themes?: infer Themes } ? Themes : never
+    >;
+  };
+
+/**
+ * Theme object for recursivePrompt options.
+ *
+ * - Native prompt themes are keyed by prompt type (`input`, `select`, ...).
+ * - Plugin themes are keyed by plugin `type` and inferred from plugin declarations.
+ */
+export type RecursivePromptThemeOptions<
+  Plugins extends readonly AnyRecursivePromptPlugin[] = [],
+> = NativePromptThemeOptions & PluginPromptThemeOptions<Plugins>;
 
 /**
  * One loop entry result, keyed by question name.
@@ -59,8 +111,10 @@ export type RecursiveAnswers = Record<string, unknown>;
  */
 export type RecursiveQuestionExecutionContext = {
   answers: RecursiveAnswers;
+  allAnswers: RecursiveAnswers[];
   depth: number;
   iteration: number;
+  setField: (path: string, value: unknown) => void;
 };
 
 /**
@@ -75,6 +129,7 @@ export type RecursiveExitWhenContext = {
 
 type BaseRecursiveQuestion = {
   name: string;
+  askAnswered?: boolean;
   when?:
     | boolean
     | ((context: RecursiveQuestionExecutionContext) => MaybePromise<boolean>);
@@ -86,7 +141,27 @@ type BaseRecursiveQuestion = {
     value: unknown,
     context: RecursiveQuestionExecutionContext,
   ) => MaybePromise<boolean | string>;
+  transformer?: (
+    value: unknown,
+    context: RecursiveQuestionExecutionContext,
+    flags?: unknown,
+  ) => string;
+  addAdditionalFields?: (
+    value: unknown,
+    context: RecursiveQuestionExecutionContext,
+  ) => MaybePromise<void>;
 };
+
+type WithDynamicChoices<Config extends Record<string, unknown>> =
+  Config extends { choices: infer Choices }
+    ? Omit<Config, "choices"> & {
+        choices:
+          | Choices
+          | ((
+              context: RecursiveQuestionExecutionContext,
+            ) => MaybePromise<Choices>);
+      }
+    : Config;
 
 type NativeQuestion<
   Type extends Exclude<RecursivePromptType, "recursive">,
@@ -98,10 +173,22 @@ type NativeQuestion<
 export type InputQuestion = NativeQuestion<"input", Parameters<typeof inputPrompt>[0]>;
 export type NumberQuestion = NativeQuestion<"number", Parameters<typeof numberPrompt>[0]>;
 export type ConfirmQuestion = NativeQuestion<"confirm", Parameters<typeof confirmPrompt>[0]>;
-export type SelectQuestion = NativeQuestion<"select", Parameters<typeof selectPrompt>[0]>;
-export type CheckboxQuestion = NativeQuestion<"checkbox", Parameters<typeof checkboxPrompt>[0]>;
-export type RawlistQuestion = NativeQuestion<"rawlist", Parameters<typeof rawlistPrompt>[0]>;
-export type ExpandQuestion = NativeQuestion<"expand", Parameters<typeof expandPrompt>[0]>;
+export type SelectQuestion = NativeQuestion<
+  "select",
+  WithDynamicChoices<Parameters<typeof selectPrompt>[0]>
+>;
+export type CheckboxQuestion = NativeQuestion<
+  "checkbox",
+  WithDynamicChoices<Parameters<typeof checkboxPrompt>[0]>
+>;
+export type RawlistQuestion = NativeQuestion<
+  "rawlist",
+  WithDynamicChoices<Parameters<typeof rawlistPrompt>[0]>
+>;
+export type ExpandQuestion = NativeQuestion<
+  "expand",
+  WithDynamicChoices<Parameters<typeof expandPrompt>[0]>
+>;
 export type PasswordQuestion = NativeQuestion<"password", Parameters<typeof passwordPrompt>[0]>;
 export type EditorQuestion = NativeQuestion<"editor", Parameters<typeof editorPrompt>[0]>;
 export type SearchQuestion = NativeQuestion<"search", Parameters<typeof searchPrompt>[0]>;
@@ -140,6 +227,17 @@ export interface RecursivePromptOptions<
 
   /** Shared inquirer context (streams, signal, etc.). */
   context?: Context;
+
+  /**
+   * Global themes by prompt type.
+   *
+   * The matching key is merged into each question's local `theme` field.
+   * Local question theme overrides global values.
+    *
+  * `recursivePrompt` can be used to style the built-in loop prompt
+  * (confirm/select) independently from question themes.
+   */
+  theme?: RecursivePromptThemeOptions<Plugins>;
 
   /**
    * Bypass the default recursion depth safety limit (3).
