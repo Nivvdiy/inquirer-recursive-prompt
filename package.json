@@ -1,6 +1,6 @@
 {
   "name": "inquirer-recursive-prompt",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Recursive prompt utility for @inquirer with nested flows and typed plugin support",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
