@@ -1,5 +1,13 @@
 # inquirer-recursive-prompt
 
+[![npm version](https://img.shields.io/npm/v/inquirer-recursive-prompt)](https://www.npmjs.com/package/inquirer-recursive-prompt)
+![downloads](https://img.shields.io/npm/dw/inquirer-recursive-prompt)
+![license](https://img.shields.io/npm/l/inquirer-recursive-prompt)
+![node](https://img.shields.io/node/v/inquirer-recursive-prompt)
+
+[![inquirer prompt](https://img.shields.io/badge/inquirer%20prompt-plugin-blue)](https://github.com/SBoudrias/Inquirer.js/)
+![recursive prompts](https://img.shields.io/badge/prompts-recursive-orange)
+
 A TypeScript library for creating recursive prompts with [@inquirer/core](https://github.com/SBoudrias/Inquirer.js). Allows users to repeatedly answer the same set of questions in a loop with flexible conditions and custom plugin support.
 
 ## Features
@@ -180,14 +188,14 @@ Available in `exitWhen` callback:
 
 ## Examples
 
-| Example | Script | Description |
-|---|---|---|
-| [simple.ts](examples/simple.ts) | `npm run example:simple` | Basic loop with `input`, `select`, `number` |
-| [nested-recursive.ts](examples/nested-recursive.ts) | `npm run example:nested` | Nested recursive prompts |
-| [with-plugin.ts](examples/with-plugin.ts) | `npm run example:plugin` | Custom Inquirer plugin registration |
-| [with-exit-condition.ts](examples/with-exit-condition.ts) | `npm run example:exit` | `exitWhen` based on a user-defined limit |
-| [with-themes.ts](examples/with-themes.ts) | `npm run example:themes` | Global and per-question theming, `recursivePrompt` loop theme |
-| [with-month-revenue.ts](examples/with-month-revenue.ts) | `npm run example:months` | Dynamic choices, `transformer`, `addAdditionalFields`, `setField` |
+| Example                                                   | Script                   | Description                                                       |
+| --------------------------------------------------------- | ------------------------ | ----------------------------------------------------------------- |
+| [simple.ts](examples/simple.ts)                           | `npm run example:simple` | Basic loop with `input`, `select`, `number`                       |
+| [nested-recursive.ts](examples/nested-recursive.ts)       | `npm run example:nested` | Nested recursive prompts                                          |
+| [with-plugin.ts](examples/with-plugin.ts)                 | `npm run example:plugin` | Custom Inquirer plugin registration                               |
+| [with-exit-condition.ts](examples/with-exit-condition.ts) | `npm run example:exit`   | `exitWhen` based on a user-defined limit                          |
+| [with-themes.ts](examples/with-themes.ts)                 | `npm run example:themes` | Global and per-question theming, `recursivePrompt` loop theme     |
+| [with-month-revenue.ts](examples/with-month-revenue.ts)   | `npm run example:months` | Dynamic choices, `transformer`, `addAdditionalFields`, `setField` |
 
 ## Advanced Features
 
